@@ -1,5 +1,5 @@
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Important!",
-        Text = "This script is currently offline",
+        Title = "Script updating",
+        Text = "Try again later",
         Duration = 10
     })
