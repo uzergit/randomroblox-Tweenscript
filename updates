@@ -1,14 +1,3 @@
---[[
-    Ultimate Tween Tool (Fixed Persistence Version)
-    Features:
-    - Persistent GUI state through deaths/respawns
-    - Zero-overlap player list
-    - Unique keybinds enforced
-    - Noclip during movement
-    - Single tool instance
-    - Clean GUI
---]]
-
 --#region Platform Check
 local UserInputService = game:GetService("UserInputService")
 local platform = UserInputService:GetPlatform()
