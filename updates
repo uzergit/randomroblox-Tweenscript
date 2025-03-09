@@ -1,5 +1,5 @@
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Script updating",
+        Title = "Error fetching script.main",
         Text = "Try again later",
         Duration = 10
     })
