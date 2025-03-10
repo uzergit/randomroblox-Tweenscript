@@ -1,62 +1,40 @@
---#region Platform Check
-local UserInputService = game:GetService("UserInputService")
-local platform = UserInputService:GetPlatform()
+if getgenv().TeleportToolLoaded then return end
+getgenv().TeleportToolLoaded = true
+if not game:IsLoaded() then game.Loaded:Wait() end
 
-if platform ~= Enum.Platform.Windows and platform ~= Enum.Platform.OSX then
+-- Platform check
+local UserInputService = game:GetService("UserInputService")
+if UserInputService:GetPlatform() ~= Enum.Platform.Windows and UserInputService:GetPlatform() ~= Enum.Platform.OSX then
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "Platform Not Supported",
         Text = "This script is only available for PC",
         Duration = 10
     })
+    getgenv().TeleportToolLoaded = false
     return
 end
---#endregion
 
---#region Initialization
+-- Services
 local CoreGui = game:GetService("CoreGui")
-
-if getgenv().TeleportToolLoaded and not getgenv().IY_DEBUG then
-    if getgenv().TeleportToolDisabled then
-        getgenv().TeleportToolDisabled = false
-    else
-        return
-    end
-end
-getgenv().TeleportToolLoaded = true
-if getgenv().TeleportToolDisabled then return end
-
-if not game:IsLoaded() then game.Loaded:Wait() end
-
--- Initial notifications
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Script loaded successfully!",
-    Text = "Made by uzer*******",
-    Duration = 7
-})
-
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "GUI is movable",
-    Text = "Hold down the top part of the GUI",
-    Duration = 6
-})
---#endregion
-
---#region Services & Variables
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-
 local player = Players.LocalPlayer
+
+-- Configuration
+getgenv().hideKey = Enum.KeyCode.X
+getgenv().tweenKey = Enum.KeyCode.V
 local tweenDuration = 0.5
-local hideKey = Enum.KeyCode.X     -- Default Hide GUI key: X
-local tweenKey = Enum.KeyCode.V    -- Default Tween key: V
 local tweenPlaying = false
+local currentTween = nil
 local rebinding = false
 local toolInstance = nil
 local originalCollision = {}
---#endregion
 
---#region Core Functionality
+-- Event connections storage
+local connections = {}
+
+-- Noclip management
 local function setNoclip(enable)
     local character = player.Character
     if not character then return end
@@ -71,60 +49,75 @@ local function setNoclip(enable)
         end
     else
         for part, state in pairs(originalCollision) do
-            if part.Parent then part.CanCollide = state end
+            if part.Parent then
+                part.CanCollide = state
+            end
         end
         originalCollision = {}
     end
 end
 
+-- Tween function
 local function tweenToPosition(targetPosition)
-    if tweenPlaying then return end
-    tweenPlaying = true
+    local screenGui = CoreGui:FindFirstChild("TeleportSettingsGui")
+    if screenGui then
+        local frame = screenGui:FindFirstChild("MainFrame")
+        if frame then
+            local speedBox = frame:FindFirstChild("SpeedBox")
+            if speedBox then
+                local newSpeed = tonumber(speedBox.Text)
+                if newSpeed and newSpeed > 0 then
+                    tweenDuration = newSpeed
+                end
+            end
+        end
+    end
 
-    local success, err = pcall(function()
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
+    local character = player.Character
+    if not character then return end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-        setNoclip(true)
-        local tween = TweenService:Create(
-            hrp,
-            TweenInfo.new(tweenDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-            {CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))}
-        )
-        
-        tween:Play()
-        tween.Completed:Connect(function()
-            setNoclip(false)
-            tweenPlaying = false
-        end)
-    end)
-
-    if not success then
-        warn("Tween Error: " .. err)
-        setNoclip(false)
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
         tweenPlaying = false
     end
-end
---#endregion
 
---#region Tool Management
+    tweenPlaying = true
+    setNoclip(true)
+    
+    currentTween = TweenService:Create(
+        hrp,
+        TweenInfo.new(tweenDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {CFrame = CFrame.new(targetPosition + Vector3.new(0, 3, 0))}
+    )
+    
+    currentTween:Play()
+    currentTween.Completed:Connect(function()
+        setNoclip(false)
+        tweenPlaying = false
+        currentTween = nil
+    end)
+end
+
+-- Tool management
 local function createTeleportTool()
     local tool = Instance.new("Tool")
     tool.Name = "Tween Tool"
     tool.RequiresHandle = false
-
     tool.Activated:Connect(function()
         local targetPosition = player:GetMouse().Hit.Position
-        if targetPosition then tweenToPosition(targetPosition) end
+        if targetPosition then
+            tweenToPosition(targetPosition)
+        end
     end)
-
     return tool
 end
 
 local function giveTool()
-    local existing = player.Backpack:FindFirstChild("Tween Tool") 
-        or (player.Character and player.Character:FindFirstChild("Tween Tool"))
-    
+    local existing = player.Backpack:FindFirstChild("Tween Tool") or (player.Character and player.Character:FindFirstChild("Tween Tool"))
     if not existing then
         toolInstance = createTeleportTool()
         toolInstance.Parent = player.Backpack
@@ -135,49 +128,46 @@ end
 
 local function removeTool()
     if toolInstance then
-        if toolInstance.Parent == player.Character then
-            toolInstance.Parent = player.Backpack
-        end
         toolInstance:Destroy()
         toolInstance = nil
     end
-
     for _, location in {player.Backpack, player.Character} do
         if location then
             local tool = location:FindFirstChild("Tween Tool")
-            if tool then tool:Destroy() end
+            if tool then
+                tool:Destroy()
+            end
         end
     end
 end
---#endregion
 
---#region Persistent GUI Implementation (FULLY RESTORED)
+-- GUI Creation
 local function createGUI()
-    -- GUI persistence setup
     local screenGui = CoreGui:FindFirstChild("TeleportSettingsGui") or Instance.new("ScreenGui")
     screenGui.Name = "TeleportSettingsGui"
     screenGui.ResetOnSpawn = false
+    screenGui.Parent = CoreGui
+
     if screenGui:GetAttribute("GuiVisible") == nil then
         screenGui:SetAttribute("GuiVisible", true)
     end
     screenGui.Enabled = screenGui:GetAttribute("GuiVisible")
-    screenGui.Parent = CoreGui
 
     local savedPosition = screenGui:GetAttribute("GuiPosition") or UDim2.new(0, 50, 0, 50)
-    
     local frame = screenGui:FindFirstChild("MainFrame") or Instance.new("Frame")
     frame.Name = "MainFrame"
     frame.Size = UDim2.new(0, 500, 0, 230)
     frame.Position = savedPosition
     frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    frame.Active, frame.Draggable = true, true
+    frame.Active = true
+    frame.Draggable = true
     frame.Parent = screenGui
 
-    frame:GetPropertyChangedSignal("Position"):Connect(function()
+    connections.FramePosition = frame:GetPropertyChangedSignal("Position"):Connect(function()
         screenGui:SetAttribute("GuiPosition", frame.Position)
     end)
 
-    --#region GUI Controls (Left Side)
+    -- Speed settings
     local speedLabel = Instance.new("TextLabel")
     speedLabel.Size = UDim2.new(0, 200, 0, 20)
     speedLabel.Position = UDim2.new(0, 10, 0, 10)
@@ -195,27 +185,28 @@ local function createGUI()
     speedBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     speedBox.ClearTextOnFocus = false
     speedBox.Parent = frame
-    speedBox.FocusLost:Connect(function(enterPressed)
-        local input = speedBox.Text:gsub(",", ".") -- Fix for commas
+
+    speedBox.FocusLost:Connect(function()
+        local input = speedBox.Text:gsub(",", ".")
         local newSpeed = tonumber(input)
         if newSpeed and newSpeed > 0 then
             tweenDuration = newSpeed
         else
-            tweenDuration = 0.5
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = "Invalid Input",
                 Text = "Resetting to 0.5 seconds",
                 Duration = 3
             })
+            tweenDuration = 0.5
         end
-        speedBox.Text = string.format("%.2f", tweenDuration) -- Force 2 decimals
+        speedBox.Text = string.format("%.2f", tweenDuration)
     end)
 
-    -- Key Rebinding Buttons (Unchanged)
+    -- Keybind buttons
     local hideKeyButton = Instance.new("TextButton")
     hideKeyButton.Size = UDim2.new(0, 200, 0, 30)
     hideKeyButton.Position = UDim2.new(0, 10, 0, 65)
-    hideKeyButton.Text = "Hide GUI keybind: " .. hideKey.Name
+    hideKeyButton.Text = "Hide GUI keybind: " .. getgenv().hideKey.Name
     hideKeyButton.TextColor3 = Color3.new(1, 1, 1)
     hideKeyButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     hideKeyButton.Parent = frame
@@ -223,39 +214,40 @@ local function createGUI()
     local tweenKeyButton = Instance.new("TextButton")
     tweenKeyButton.Size = UDim2.new(0, 200, 0, 30)
     tweenKeyButton.Position = UDim2.new(0, 10, 0, 95)
-    tweenKeyButton.Text = "Tween Keybind: " .. tweenKey.Name
+    tweenKeyButton.Text = "Tween Keybind: " .. getgenv().tweenKey.Name
     tweenKeyButton.TextColor3 = Color3.new(1, 1, 1)
     tweenKeyButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     tweenKeyButton.Parent = frame
 
-    -- Key Rebinding Logic (Unchanged)
+    -- Keybind logic
     local function startRebinding(button, keyType)
         rebinding = true
-        local originalKey = (keyType == "hide") and hideKey or tweenKey
         button.Text = "Press Any Key..."
         button.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-
+        
         local connection
-        connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-            if not gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard then
+        connection = UserInputService.InputBegan:Connect(function(input)
+            if not rebinding then return end
+            if input.UserInputType == Enum.UserInputType.Keyboard then
                 local newKey = input.KeyCode
-                local otherKey = (keyType == "hide") and tweenKey or hideKey
                 
-                if newKey == otherKey then
-                    button.Text = (keyType == "hide") and "Hide GUI keybind: " .. originalKey.Name or "Tween Keybind: " .. originalKey.Name
-                    button.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-                    task.wait(0.5)
-                    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                -- Prevent duplicate keybinds
+                if (keyType == "hide" and newKey == getgenv().tweenKey) or
+                   (keyType == "tween" and newKey == getgenv().hideKey) then
+                    local originalColor = button.BackgroundColor3
+                    button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                    task.wait(0.2)
+                    button.BackgroundColor3 = originalColor
                     return
                 end
 
                 if keyType == "hide" then
-                    hideKey = newKey
+                    getgenv().hideKey = newKey
+                    button.Text = "Hide GUI keybind: " .. newKey.Name
                 else
-                    tweenKey = newKey
+                    getgenv().tweenKey = newKey
+                    button.Text = "Tween Keybind: " .. newKey.Name
                 end
-                
-                button.Text = (keyType == "hide") and "Hide GUI keybind: " .. newKey.Name or "Tween Keybind: " .. newKey.Name
                 button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
                 connection:Disconnect()
                 rebinding = false
@@ -263,19 +255,36 @@ local function createGUI()
         end)
     end
 
+    -- Button click handlers
     hideKeyButton.MouseButton1Click:Connect(function()
-        if not rebinding then startRebinding(hideKeyButton, "hide") end
+        if not rebinding then
+            startRebinding(hideKeyButton, "hide")
+        else
+            -- Trigger tween when clicking while not rebinding
+            local targetPosition = player:GetMouse().Hit.Position
+            if targetPosition then
+                tweenToPosition(targetPosition)
+            end
+        end
     end)
 
     tweenKeyButton.MouseButton1Click:Connect(function()
-        if not rebinding then startRebinding(tweenKeyButton, "tween") end
+        if not rebinding then
+            startRebinding(tweenKeyButton, "tween")
+        else
+            -- Trigger tween when clicking while not rebinding
+            local targetPosition = player:GetMouse().Hit.Position
+            if targetPosition then
+                tweenToPosition(targetPosition)
+            end
+        end
     end)
 
-    --#region Player List (Right Side)
+    -- Player list
     local playerListLabel = Instance.new("TextLabel")
     playerListLabel.Size = UDim2.new(0, 230, 0, 20)
     playerListLabel.Position = UDim2.new(0, 260, 0, 10)
-    playerListLabel.Text = "Player List:"
+    playerListLabel.Text = "Player List (click a name to tween):"
     playerListLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     playerListLabel.BackgroundTransparency = 1
     playerListLabel.Parent = frame
@@ -291,7 +300,6 @@ local function createGUI()
     local function updatePlayerList()
         playerListFrame:ClearAllChildren()
         local yPosition = 0
-        
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= player then
                 local button = Instance.new("TextButton")
@@ -301,26 +309,22 @@ local function createGUI()
                 button.TextColor3 = Color3.new(1, 1, 1)
                 button.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
                 button.Parent = playerListFrame
-
                 button.MouseButton1Click:Connect(function()
                     if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                         tweenToPosition(plr.Character.HumanoidRootPart.Position)
                     end
                 end)
-
-                yPosition = yPosition + 20
+                yPosition += 20
             end
         end
-
         playerListFrame.CanvasSize = UDim2.new(0, 0, 0, yPosition)
     end
 
     updatePlayerList()
-    Players.PlayerAdded:Connect(updatePlayerList)
-    Players.PlayerRemoving:Connect(updatePlayerList)
-    --#endregion
+    connections.PlayerAdded = Players.PlayerAdded:Connect(updatePlayerList)
+    connections.PlayerRemoving = Players.PlayerRemoving:Connect(updatePlayerList)
 
-    --#region GUI Toggle/Destroy Buttons
+    -- GUI toggle
     local toggleGUIButton = Instance.new("TextButton")
     toggleGUIButton.Size = UDim2.new(0, 200, 0, 30)
     toggleGUIButton.Position = UDim2.new(0, 10, 0, 125)
@@ -328,18 +332,14 @@ local function createGUI()
     toggleGUIButton.TextColor3 = Color3.new(1, 1, 1)
     toggleGUIButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
     toggleGUIButton.Parent = frame
+
     toggleGUIButton.MouseButton1Click:Connect(function()
         local newState = not screenGui:GetAttribute("GuiVisible")
         screenGui:SetAttribute("GuiVisible", newState)
         screenGui.Enabled = newState
-        if newState then
-            speedBox.Text = string.format("%.2f", tweenDuration)
-            giveTool()
-        else
-            removeTool()
-        end
     end)
 
+    -- Destroy button
     local disableButton = Instance.new("TextButton")
     disableButton.Size = UDim2.new(0, 200, 0, 30)
     disableButton.Position = UDim2.new(0, 10, 0, 155)
@@ -347,52 +347,77 @@ local function createGUI()
     disableButton.TextColor3 = Color3.new(1, 1, 1)
     disableButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     disableButton.Parent = frame
+
     disableButton.MouseButton1Click:Connect(function()
-        getgenv().TeleportToolDisabled = true
+        if currentTween then
+            currentTween:Cancel()
+            setNoclip(false)
+        end
+        
         removeTool()
-        screenGui:Destroy()
-    end)
-    --#endregion
-end
---#endregion
-
---#region Main Execution (Unchanged)
-if not getgenv().TeleportToolDisabled then
-    giveTool()
-    createGUI()
-end
-
-player.CharacterAdded:Connect(function()
-    task.wait(1)
-    if not getgenv().TeleportToolDisabled then
-        local screenGui = CoreGui:FindFirstChild("TeleportSettingsGui")
         if screenGui then
-            screenGui.Enabled = screenGui:GetAttribute("GuiVisible")
+            screenGui:Destroy()
+        end
+        
+        for _, conn in pairs(connections) do
+            conn:Disconnect()
+        end
+        connections = {}
+        
+        getgenv().TeleportToolLoaded = false
+    end)
+end
+
+-- Initial setup
+createGUI()
+giveTool()
+
+-- Character handling
+connections.CharacterAdded = player.CharacterAdded:Connect(function()
+    task.wait(1)
+    local screenGui = CoreGui:FindFirstChild("TeleportSettingsGui")
+    if screenGui then
+        screenGui.Enabled = screenGui:GetAttribute("GuiVisible")
+        if screenGui.Enabled then
             giveTool()
         end
     end
 end)
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
+-- Keybind handling
+connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if rebinding or gameProcessed then return end
+    
+    local screenGui = CoreGui:FindFirstChild("TeleportSettingsGui")
+    if not screenGui then return end
 
-    if input.UserInputType == Enum.UserInputType.Keyboard then
-        local screenGui = CoreGui:FindFirstChild("TeleportSettingsGui")
-        if screenGui then
-            if input.KeyCode == hideKey then
-                local newState = not screenGui:GetAttribute("GuiVisible")
-                screenGui:SetAttribute("GuiVisible", newState)
-                screenGui.Enabled = newState
-                if newState then
-                    giveTool()
-                else
-                    removeTool()
-                end
-            elseif input.KeyCode == tweenKey and not screenGui.Enabled then
-                local targetPosition = player:GetMouse().Hit.Position
-                if targetPosition then tweenToPosition(targetPosition) end
+    if input.KeyCode == getgenv().hideKey then
+        local newState = not screenGui:GetAttribute("GuiVisible")
+        screenGui:SetAttribute("GuiVisible", newState)
+        screenGui.Enabled = newState
+        
+        if newState then
+            giveTool()
+        else
+            removeTool()
+        end
+        
+    elseif input.KeyCode == getgenv().tweenKey then
+        -- Only allow tween key when GUI is hidden
+        if not screenGui:GetAttribute("GuiVisible") then
+            local targetPosition = player:GetMouse().Hit.Position
+            if targetPosition then
+                tweenToPosition(targetPosition)
             end
         end
     end
 end)
---#endregion
+
+-- Self-reset mechanism
+script.Destroying:Connect(function()
+    if currentTween then
+        currentTween:Cancel()
+        setNoclip(false)
+    end
+    getgenv().TeleportToolLoaded = false
+end)
