@@ -1,0 +1,43 @@
+name: Version Bump
+
+on:
+  push:
+    branches:
+      - main  # or whatever branch you're using
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      
+      - name: Set up Node.js (if you're using Node for versioning)
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14' # Replace with your preferred Node version
+
+      - name: Install dependencies (if any)
+        run: npm install  # If you have any dependencies to install
+
+      - name: Check for changes and bump version
+        run: |
+          git diff --name-only HEAD^..HEAD
+          VERSION=$(cat VERSION)
+          
+          # Check if any of the important files (for example, script files) have changed
+          if git diff --name-only HEAD^..HEAD | grep -q 'path/to/your/script'; then
+            # Update version (You can use a script to increment based on change type)
+            echo "Bumping version"
+            VERSION=$(node bump-version.js $VERSION)  # Or any logic to bump version
+            echo $VERSION > VERSION
+            git commit -am "Bump version to $VERSION"
+            git push
+          fi
+
+      - name: Commit new version
+        run: |
+          git add VERSION
+          git commit -m "Bump version to $(cat VERSION)"
+          git push
