@@ -15,8 +15,8 @@ if UserInputService:GetPlatform() ~= Enum.Platform.Windows and UserInputService:
 end
 
 game:GetService("StarterGui"):SetCore("SendNotification",{
-Title = "FUCK NIGGERS AND FAGGOTS",
-Text = "Kill all niggers?", 
+Title = "Version:",
+Text = "4.1", 
 
 Button1 = "Yes",
 Button2 = "Cancel",
