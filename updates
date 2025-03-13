@@ -18,9 +18,7 @@ game:GetService("StarterGui"):SetCore("SendNotification",{
 Title = "Version:",
 Text = "4.1", 
 
-Button1 = "Yes",
-Button2 = "Cancel",
-Duration = 30 
+Duration = 3
 })
 
 -- Services
