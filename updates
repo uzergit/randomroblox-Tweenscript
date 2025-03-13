@@ -16,7 +16,21 @@ end
 
 game:GetService("StarterGui"):SetCore("SendNotification",{
 Title = "Version:",
-Text = "4.1", 
+Text = "4.1.1", 
+
+Duration = 3
+})
+
+game:GetService("StarterGui"):SetCore("SendNotification",{
+Title = "Credits",
+Text = "Made By uzer*******", 
+
+Duration = 
+})
+
+game:GetService("StarterGui"):SetCore("SendNotification",{
+Title = "Moveable GUI",
+Text = "Hold the top part of the GUI", 
 
 Duration = 3
 })
