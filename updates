@@ -25,14 +25,14 @@ game:GetService("StarterGui"):SetCore("SendNotification",{
 Title = "Credits",
 Text = "Made By uzer*******", 
 
-Duration = 
+Duration = 5
 })
 
 game:GetService("StarterGui"):SetCore("SendNotification",{
 Title = "Moveable GUI",
 Text = "Hold the top part of the GUI", 
 
-Duration = 3
+Duration = 4
 })
 
 -- Services
